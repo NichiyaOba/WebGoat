@@ -19,7 +19,9 @@ import java.util.ArrayList;
 import java.util.TimeZone;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.FilenameUtils;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Controller;
@@ -30,6 +32,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.ModelAndView;
 import org.springframework.web.servlet.view.RedirectView;
 
@@ -69,14 +72,23 @@ public class FileServer {
     var username = authentication.getName();
     var destinationDir = new File(fileLocation, username);
     destinationDir.mkdirs();
+    var fileName = sanitizedFileName(multipartFile.getOriginalFilename());
     // DO NOT use multipartFile.transferTo(), see
     // https://stackoverflow.com/questions/60336929/java-nio-file-nosuchfileexception-when-file-transferto-is-called
     try (InputStream is = multipartFile.getInputStream()) {
-      var destinationFile = destinationDir.toPath().resolve(multipartFile.getOriginalFilename());
+      // anchor on the configured root, not on the user directory: the user name also reaches the
+      // path and is not validated on every authentication route.
+      var rootPath = new File(fileLocation).toPath().toAbsolutePath().normalize();
+      var destinationFile =
+          destinationDir.toPath().toAbsolutePath().resolve(fileName).normalize();
+      if (!destinationFile.startsWith(rootPath) || destinationFile.equals(rootPath)) {
+        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid file name");
+      }
+      Files.createDirectories(destinationFile.getParent());
       Files.deleteIfExists(destinationFile);
       Files.copy(is, destinationFile);
     }
-    log.debug("File saved to {}", new File(destinationDir, multipartFile.getOriginalFilename()));
+    log.debug("File saved to {}", new File(destinationDir, fileName));
 
     return new ModelAndView(
         new RedirectView("files", true),
@@ -115,6 +127,20 @@ public class FileServer {
         uploadedFiles.stream().sorted(comparing(UploadedFile::creationTime).reversed()).toList());
     modelAndView.addObject("webwolf_url", "http://" + server + ":" + port + contextPath);
     return modelAndView;
+  }
+
+  /**
+   * Reduces a client supplied upload name to a single, safe path segment. The multipart filename is
+   * fully attacker controlled and Spring does not strip separators, so a name like {@code
+   * ../victim/evil.html} would otherwise escape the user's own directory.
+   */
+  private String sanitizedFileName(String originalFilename) {
+    var fileName = FilenameUtils.getName(originalFilename);
+    if (fileName == null || fileName.isBlank() || ".".equals(fileName) || "..".equals(fileName)) {
+      // a missing or unusable name is a bad request, not a server fault
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid or missing file name");
+    }
+    return fileName;
   }
 
   private String getCreationTime(TimeZone timezone, File file) {
