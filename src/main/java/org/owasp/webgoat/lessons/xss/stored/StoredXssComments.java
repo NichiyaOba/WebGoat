@@ -91,7 +91,9 @@ public class StoredXssComments implements AssignmentEndpoint {
     comments.add(comment);
     userComments.put(username, comments);
 
-    if (comment.getText().contains(phoneHomeString)) {
+    // Assess what is actually served to readers, not the raw submission: the comment is
+    // encoded on the way out, so the payload is no longer live markup for anyone viewing it.
+    if (encoded(comment).getText().contains(phoneHomeString)) {
       return (success(this).feedback("xss-stored-comment-success").build());
     } else {
       return (failed(this).feedback("xss-stored-comment-failure").build());
