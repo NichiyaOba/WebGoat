@@ -40,7 +40,9 @@ public class WebSecurityConfig {
                         "/plugins/**",
                         "/registration",
                         "/register.mvc",
-                        "/actuator/**")
+                        // only the health probe is public, it backs the Docker HEALTHCHECK.
+                        // every other actuator endpoint stays behind authentication.
+                        "/actuator/health")
                     .permitAll()
                     .anyRequest()
                     .authenticated())
