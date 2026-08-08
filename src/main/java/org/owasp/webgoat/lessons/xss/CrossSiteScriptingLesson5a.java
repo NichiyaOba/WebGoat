@@ -64,7 +64,8 @@ public class CrossSiteScriptingLesson5a implements AssignmentEndpoint {
     StringBuilder cart = new StringBuilder();
     cart.append("Thank you for shopping at WebGoat. <br />Your support is appreciated<hr />");
     // Encode at the sink: the field is echoed back into HTML, so markup in it must be inert.
-    cart.append("<p>We have charged credit card:" + HtmlUtils.htmlEscape(field1) + "<br />");
+    String reflected = HtmlUtils.htmlEscape(field1);
+    cart.append("<p>We have charged credit card:" + reflected + "<br />");
     cart.append("                             ------------------- <br />");
     cart.append("                               $" + totalSale);
 
@@ -73,7 +74,9 @@ public class CrossSiteScriptingLesson5a implements AssignmentEndpoint {
       userSessionData.setValue("xss-reflected1-complete", "false");
     }
 
-    if (XSS_PATTERN.test(field1)) {
+    // Assess what actually reaches the page, not the raw parameter: once the value is
+    // encoded it is no longer live markup, so the lesson's own oracle stops matching.
+    if (XSS_PATTERN.test(reflected)) {
       userSessionData.setValue("xss-reflected-5a-complete", "true");
       if (field1.toLowerCase().contains("console.log")) {
         return success(this)
