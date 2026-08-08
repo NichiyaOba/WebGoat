@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.DynamicTest.dynamicTest;
 import io.restassured.RestAssured;
 import java.util.Arrays;
 import java.util.Map;
+import java.util.regex.Pattern;
 import org.apache.commons.lang3.StringUtils;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterEach;
@@ -18,6 +19,9 @@ import org.junit.jupiter.api.TestFactory;
 import org.springframework.http.HttpHeaders;
 
 public class PasswordResetLessonIntegrationTest extends IntegrationTest {
+
+  private static final Pattern RESET_LINK_PATTERN =
+      Pattern.compile("/PasswordReset/reset/reset-password/([A-Za-z0-9-]+)");
 
   @BeforeEach
   public void init() {
@@ -129,11 +133,16 @@ public class PasswordResetLessonIntegrationTest extends IntegrationTest {
             .response()
             .getBody()
             .asString();
-    int startIndex = responseBody.lastIndexOf("/PasswordReset/reset/reset-password/");
-    var link =
-        responseBody.substring(
-            startIndex + "/PasswordReset/reset/reset-password/".length(),
-            responseBody.indexOf(",", startIndex) - 1);
+    // The requests page HTML-escapes the recorded trace, so match the characters a reset token is
+    // actually made of instead of counting bytes around the surrounding JSON punctuation.
+    var matcher = RESET_LINK_PATTERN.matcher(responseBody);
+    String link = null;
+    while (matcher.find()) {
+      link = matcher.group(1);
+    }
+    Assertions.assertThat(link)
+        .as("password reset link should be present on the WebWolf requests page")
+        .isNotNull();
     return link;
   }
 
