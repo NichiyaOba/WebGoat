@@ -76,7 +76,16 @@ public class ProfileZipSlip extends ProfileUploadBase {
       Enumeration<? extends ZipEntry> entries = zip.entries();
       while (entries.hasMoreElements()) {
         ZipEntry e = entries.nextElement();
-        File f = new File(tmpZipDirectory.toFile(), e.getName());
+        // Zip Slip: the entry name comes from the archive, so an entry like
+        // "../../../victim.jpg" would otherwise be written outside the extraction directory.
+        var extractionRoot = tmpZipDirectory.toFile().getCanonicalFile().toPath();
+        File f = new File(tmpZipDirectory.toFile(), e.getName()).getCanonicalFile();
+        if (!f.toPath().startsWith(extractionRoot)) {
+          return failed(this)
+              .feedback("path-traversal-zip-slip.extracted")
+              .output("Illegal entry in archive: " + e.getName())
+              .build();
+        }
         InputStream is = zip.getInputStream(e);
         Files.copy(is, f.toPath(), StandardCopyOption.REPLACE_EXISTING);
       }

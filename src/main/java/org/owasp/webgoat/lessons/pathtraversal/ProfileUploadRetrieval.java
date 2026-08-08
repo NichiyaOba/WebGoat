@@ -97,8 +97,17 @@ public class ProfileUploadRetrieval implements AssignmentEndpoint {
     }
     try {
       var id = request.getParameter("id");
+      // The query-string filter above sees the raw, still-encoded value while getParameter
+      // returns the decoded one, so "%2e%2e%2f" slips past it. Contain the resolved file
+      // rather than trusting that string check.
+      var catsRoot = catPicturesDirectory.getCanonicalFile().toPath();
       var catPicture =
-          new File(catPicturesDirectory, (id == null ? RandomUtils.nextInt(1, 11) : id) + ".jpg");
+          new File(catPicturesDirectory, (id == null ? RandomUtils.nextInt(1, 11) : id) + ".jpg")
+              .getCanonicalFile();
+      if (!catPicture.toPath().startsWith(catsRoot)) {
+        return ResponseEntity.badRequest()
+            .body("Illegal characters are not allowed in the query params");
+      }
 
       if (catPicture.getName().toLowerCase().contains("path-traversal-secret.jpg")) {
         return ResponseEntity.ok()
