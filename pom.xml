@@ -238,7 +238,9 @@
     <dependency>
       <groupId>org.projectlombok</groupId>
       <artifactId>lombok</artifactId>
-      <version>1.18.36</version>
+      <!-- 1.18.36 cannot run its annotation processor on JDK 24+ (TypeTag :: UNKNOWN),
+           which breaks the build on toolchains newer than the one pinned in the Dockerfile. -->
+      <version>1.18.42</version>
       <scope>provided</scope>
       <optional>true</optional>
     </dependency>
