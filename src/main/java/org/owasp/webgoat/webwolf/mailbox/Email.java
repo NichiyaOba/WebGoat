@@ -42,7 +42,14 @@ public class Email implements Serializable {
   private String title;
   private String recipient;
 
+  /**
+   * Like {@link #getShortSender()} the body comes straight from the mail endpoint and may be absent,
+   * which must not break rendering of the whole mailbox.
+   */
   public String getSummary() {
+    if (contents == null) {
+      return "-";
+    }
     return "-" + this.contents.substring(0, Math.min(50, contents.length()));
   }
 
@@ -54,7 +61,15 @@ public class Email implements Serializable {
     return DateTimeFormatter.ofPattern("h:mm a").format(time);
   }
 
+  /**
+   * The sender is supplied by the caller of the mail endpoint and is not guaranteed to be a real
+   * address, so a missing "@" must not break rendering of the whole mailbox.
+   */
   public String getShortSender() {
-    return sender.substring(0, sender.indexOf("@"));
+    if (sender == null) {
+      return "";
+    }
+    int at = sender.indexOf("@");
+    return at < 0 ? sender : sender.substring(0, at);
   }
 }
