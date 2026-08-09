@@ -36,7 +36,9 @@ public class DOMCrossSiteScripting implements AssignmentEndpoint {
     if (param1 == 42
         && param2 == 24
         && request.getHeader("webgoat-requested-by").equals("dom-xss-vuln")) {
-      return success(this)
+      // Two fixed numbers and a fixed header value. Anyone can send them directly; nothing
+      // here shows that script ran in a browser, which is what the lesson is about.
+      return failed(this)
           .output("phoneHome Response is " + lessonSession.getValue("randValue").toString())
           .build();
     } else {

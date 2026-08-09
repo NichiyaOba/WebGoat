@@ -27,11 +27,6 @@ import org.springframework.web.bind.annotation.RestController;
     value = {"SqlStringInjectionHint4-1", "SqlStringInjectionHint4-2", "SqlStringInjectionHint4-3"})
 public class SqlInjectionLesson4 implements AssignmentEndpoint {
 
-  private final LessonDataSource dataSource;
-
-  public SqlInjectionLesson4(LessonDataSource dataSource) {
-    this.dataSource = dataSource;
-  }
 
   @PostMapping("/SqlInjection/attack4")
   @ResponseBody
@@ -40,25 +35,9 @@ public class SqlInjectionLesson4 implements AssignmentEndpoint {
   }
 
   protected AttackResult injectableQuery(String query) {
-    try (Connection connection = dataSource.getConnection()) {
-      try (Statement statement =
-          connection.createStatement(TYPE_SCROLL_INSENSITIVE, CONCUR_READ_ONLY)) {
-        statement.executeUpdate(query);
-        connection.commit();
-        ResultSet results = statement.executeQuery("SELECT phone from employees;");
-        StringBuilder output = new StringBuilder();
-        // user completes lesson if column phone exists
-        if (results.first()) {
-          output.append("<span class='feedback-positive'>" + query + "</span>");
-          return success(this).output(output.toString()).build();
-        } else {
-          return failed(this).output(output.toString()).build();
-        }
-      } catch (SQLException sqle) {
-        return failed(this).output(sqle.getMessage()).build();
-      }
-    } catch (Exception e) {
-      return failed(this).output(this.getClass().getName() + " : " + e.getMessage()).build();
-    }
+    // The caller's parameter used to be handed straight to the JDBC Statement, so the request
+    // decided what SQL the server ran - not a value injected into a statement, but the statement
+    // itself. Escaping cannot help with that; the database is not exposed to caller-written SQL.
+    return failed(this).output("Caller-supplied SQL is not executed").build();
   }
 }

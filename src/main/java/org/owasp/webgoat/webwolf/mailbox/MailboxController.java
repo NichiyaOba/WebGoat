@@ -43,9 +43,10 @@ public class MailboxController {
     mailboxRepository.save(email);
   }
 
+  /** Only ever removes the mail of the caller, never anyone else's. */
   @DeleteMapping("/mail")
   @ResponseStatus(HttpStatus.ACCEPTED)
-  public void deleteAllMail() {
-    mailboxRepository.deleteAll();
+  public void deleteMail(Authentication authentication) {
+    mailboxRepository.deleteByRecipient(authentication.getName());
   }
 }

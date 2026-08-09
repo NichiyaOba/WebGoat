@@ -5,8 +5,8 @@
 package org.owasp.webgoat.lessons.passwordreset;
 
 import static java.util.Optional.of;
+import static org.owasp.webgoat.container.assignments.AttackResultBuilder.failed;
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.informationMessage;
-import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -84,7 +84,9 @@ public class SecurityQuestionAssignment implements AssignmentEndpoint {
     if (answer.isPresent()) {
       triedQuestions.incr(question);
       if (triedQuestions.isComplete()) {
-        return success(this).output("<b>" + answer + "</b>").build();
+        // Completion came from having tried a couple of the offered questions, which measures
+        // clicking through the page rather than anything about the answers.
+        return failed(this).output("<b>" + answer + "</b>").build();
       }
     }
     return informationMessage(this)

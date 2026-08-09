@@ -35,6 +35,19 @@ public class BypassRestrictionsFrontendValidation implements AssignmentEndpoint 
     final String regex5 = "^\\d{5}$";
     final String regex6 = "^\\d{5}(-\\d{4})?$";
     final String regex7 = "^[2-9]\\d{2}-?\\d{3}-?\\d{4}$";
+    // The page runs these same patterns before submitting, but that only decides what a
+    // cooperating browser sends. Enforcing them here is what actually keeps malformed values out,
+    // since the request can be made without the page at all.
+    if (!field1.matches(regex1)
+        || !field2.matches(regex2)
+        || !field3.matches(regex3)
+        || !field4.matches(regex4)
+        || !field5.matches(regex5)
+        || !field6.matches(regex6)
+        || !field7.matches(regex7)) {
+      return failed(this).output("Submitted values did not pass server-side validation").build();
+    }
+
     if (error > 0) {
       return failed(this).build();
     }

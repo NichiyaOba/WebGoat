@@ -12,6 +12,7 @@ import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.UUID;
 import org.owasp.webgoat.container.LessonDataSource;
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AttackResult;
@@ -24,8 +25,29 @@ import org.springframework.web.bind.annotation.RestController;
 public class SqlInjectionLesson6b implements AssignmentEndpoint {
   private final LessonDataSource dataSource;
 
+  /**
+   * dave's password ships as a fixed value in the seed data, so it is published wherever this
+   * source is. Rotating it per run means the only way to learn it is to read it out of the
+   * database, which is the step this check is supposed to be evidence of.
+   */
+  private final String davesPassword = UUID.randomUUID().toString();
+
   public SqlInjectionLesson6b(LessonDataSource dataSource) {
     this.dataSource = dataSource;
+    rotateDavesPassword();
+  }
+
+  private void rotateDavesPassword() {
+    try (Connection connection = dataSource.getConnection();
+        var statement =
+            connection.prepareStatement(
+                "UPDATE user_system_data SET password = ? WHERE user_name = 'dave'")) {
+      statement.setString(1, davesPassword);
+      statement.executeUpdate();
+    } catch (SQLException e) {
+      // The lesson database is provisioned per user; if it is not reachable at construction time
+      // the seeded value stays and getPassword below keeps comparing against whatever is stored.
+    }
   }
 
   @PostMapping("/SqlInjectionAdvanced/attack6b")

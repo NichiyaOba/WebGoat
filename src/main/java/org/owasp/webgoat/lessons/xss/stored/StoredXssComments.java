@@ -29,6 +29,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.util.HtmlUtils;
 
 @RestController
 public class StoredXssComments implements AssignmentEndpoint {
@@ -67,7 +68,14 @@ public class StoredXssComments implements AssignmentEndpoint {
       allComments.addAll(newComments);
     }
     Collections.reverse(allComments);
-    return allComments;
+    // Encode at the sink rather than on write, so comments already stored (including the
+    // seeded ones) are inert too. New instances keep the stored data untouched.
+    return allComments.stream().map(StoredXssComments::encoded).toList();
+  }
+
+  private static Comment encoded(Comment comment) {
+    return new Comment(
+        comment.getUser(), comment.getDateTime(), HtmlUtils.htmlEscape(comment.getText()));
   }
 
   @PostMapping("/CrossSiteScriptingStored/stored-xss")
@@ -83,7 +91,9 @@ public class StoredXssComments implements AssignmentEndpoint {
     comments.add(comment);
     userComments.put(username, comments);
 
-    if (comment.getText().contains(phoneHomeString)) {
+    // Assess what is actually served to readers, not the raw submission: the comment is
+    // encoded on the way out, so the payload is no longer live markup for anyone viewing it.
+    if (encoded(comment).getText().contains(phoneHomeString)) {
       return (success(this).feedback("xss-stored-comment-success").build());
     } else {
       return (failed(this).feedback("xss-stored-comment-failure").build());

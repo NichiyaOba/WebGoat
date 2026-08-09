@@ -4,10 +4,10 @@
  */
 package org.owasp.webgoat.lessons.hijacksession.cas;
 
-import java.time.Instant;
+import java.security.SecureRandom;
+import java.util.HexFormat;
 import java.util.LinkedList;
 import java.util.Queue;
-import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.DoublePredicate;
 import java.util.function.Supplier;
@@ -26,12 +26,26 @@ import org.springframework.web.context.annotation.ApplicationScope;
 public class HijackSessionAuthenticationProvider implements AuthenticationProvider<Authentication> {
 
   private Queue<String> sessions = new LinkedList<>();
-  private static long id = new Random().nextLong() & Long.MAX_VALUE;
   protected static final int MAX_SESSIONS = 50;
 
+  /** 128 bits of entropy - enough that guessing a live session is not a practical strategy. */
+  private static final int SESSION_ID_BYTES = 16;
+
+  private static final SecureRandom SECURE_RANDOM = new SecureRandom();
+
   private static final DoublePredicate PROBABILITY_DOUBLE_PREDICATE = pr -> pr < 0.75;
+
+  /**
+   * Session ids used to be {@code ++id + "-" + epochMilli}: a counter seeded once at startup plus
+   * a timestamp. Anyone holding one id could derive the ids handed to everybody else by counting
+   * up and varying the timestamp, so observing your own session was enough to take over another.
+   */
   private static final Supplier<String> GENERATE_SESSION_ID =
-      () -> ++id + "-" + Instant.now().toEpochMilli();
+      () -> {
+        byte[] id = new byte[SESSION_ID_BYTES];
+        SECURE_RANDOM.nextBytes(id);
+        return HexFormat.of().formatHex(id);
+      };
   public static final Supplier<Authentication> AUTHENTICATION_SUPPLIER =
       () -> Authentication.builder().id(GENERATE_SESSION_ID.get()).build();
 

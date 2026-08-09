@@ -42,4 +42,25 @@ public class MailboxRepositoryTest {
 
     assertThat(emails.size()).isEqualTo(1);
   }
+
+  @Test
+  void deleteByRecipientShouldOnlyDeleteOwnEmail() {
+    mailboxRepository.saveAndFlush(emailFor("someone@webwolf.org"));
+    mailboxRepository.saveAndFlush(emailFor("other@webwolf.org"));
+
+    mailboxRepository.deleteByRecipient("someone@webwolf.org");
+
+    assertThat(mailboxRepository.findByRecipientOrderByTimeDesc("someone@webwolf.org")).isEmpty();
+    assertThat(mailboxRepository.findByRecipientOrderByTimeDesc("other@webwolf.org")).hasSize(1);
+  }
+
+  private Email emailFor(String recipient) {
+    Email email = new Email();
+    email.setTime(LocalDateTime.now());
+    email.setTitle("test");
+    email.setSender("test@test.com");
+    email.setContents("test");
+    email.setRecipient(recipient);
+    return email;
+  }
 }

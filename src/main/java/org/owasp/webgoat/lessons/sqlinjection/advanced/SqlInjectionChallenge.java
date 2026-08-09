@@ -51,12 +51,20 @@ public class SqlInjectionChallenge implements AssignmentEndpoint {
     if (attackResult == null) {
 
       try (Connection connection = dataSource.getConnection()) {
-        String checkUserQuery =
-            "select userid from sql_challenge_users where userid = '" + username + "'";
-        Statement statement = connection.createStatement();
-        ResultSet resultSet = statement.executeQuery(checkUserQuery);
+        // The INSERT below already bound its parameters, but this duplicate check concatenated
+        // the username straight into the statement - so a registration could carry a second
+        // statement and rewrite another account's password before the INSERT was ever reached.
+        boolean userExists;
+        try (PreparedStatement checkUser =
+            connection.prepareStatement(
+                "select userid from sql_challenge_users where userid = ?")) {
+          checkUser.setString(1, username);
+          try (ResultSet resultSet = checkUser.executeQuery()) {
+            userExists = resultSet.next();
+          }
+        }
 
-        if (resultSet.next()) {
+        if (userExists) {
           attackResult = failed(this).feedback("user.exists").feedbackArgs(username).build();
         } else {
           PreparedStatement preparedStatement =

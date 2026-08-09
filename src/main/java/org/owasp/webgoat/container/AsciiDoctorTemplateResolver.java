@@ -137,11 +137,27 @@ public class AsciiDoctorTemplateResolver extends FileTemplateResolver {
       String langHeader = request.getHeader(HttpHeaders.ACCEPT_LANGUAGE);
       if (null != langHeader) {
         log.debug("browser locale {}", langHeader);
-        return langHeader.substring(0, 2);
+        return languageTagOf(langHeader);
       } else {
         log.debug("browser default english");
         return "en";
       }
     }
+  }
+
+  /**
+   * Reads the primary language out of an Accept-Language header. The header is fully client
+   * controlled, so anything that is not a usable two letter tag falls back to English rather than
+   * failing the whole page render.
+   */
+  private String languageTagOf(String langHeader) {
+    var primaryTag = langHeader.trim();
+    for (char separator : new char[] {',', ';', '-'}) {
+      int index = primaryTag.indexOf(separator);
+      if (index >= 0) {
+        primaryTag = primaryTag.substring(0, index).trim();
+      }
+    }
+    return primaryTag.length() >= 2 ? primaryTag.substring(0, 2).toLowerCase(Locale.ROOT) : "en";
   }
 }

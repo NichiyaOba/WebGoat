@@ -13,7 +13,6 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
-import javax.xml.XMLConstants;
 import javax.xml.stream.XMLInputFactory;
 import javax.xml.stream.XMLStreamException;
 import org.owasp.webgoat.container.users.WebGoatUser;
@@ -65,16 +64,16 @@ public class CommentsCache {
    * progress etc). In real life the XmlMapper bean defined above will be used automatically and the
    * Comment class can be directly used in the controller method (instead of a String)
    */
-  protected Comment parseXml(String xml, boolean securityEnabled)
-      throws XMLStreamException, JAXBException {
+  protected Comment parseXml(String xml) throws XMLStreamException, JAXBException {
     var jc = JAXBContext.newInstance(Comment.class);
     var xif = XMLInputFactory.newInstance();
 
-    // TODO fix me disabled for now.
-    if (securityEnabled) {
-      xif.setProperty(XMLConstants.ACCESS_EXTERNAL_DTD, ""); // Compliant
-      xif.setProperty(XMLConstants.ACCESS_EXTERNAL_SCHEMA, ""); // compliant
-    }
+    // The comment body is posted by users, so entity expansion has to be off for every caller -
+    // it is what lets a document read local files or make the server fetch a URL of its choosing.
+    // Refusing the DTD outright is what stops that, and these two are StAX properties every
+    // provider understands, unlike the ACCESS_EXTERNAL_* ones this used to set.
+    xif.setProperty(XMLInputFactory.SUPPORT_DTD, false);
+    xif.setProperty(XMLInputFactory.IS_SUPPORTING_EXTERNAL_ENTITIES, false);
 
     var xsr = xif.createXMLStreamReader(new StringReader(xml));
 

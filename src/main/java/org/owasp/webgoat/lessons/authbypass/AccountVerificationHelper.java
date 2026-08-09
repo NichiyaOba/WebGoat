@@ -55,26 +55,26 @@ public class AccountVerificationHelper {
   // end of cheating check ... the method below is the one of real interest. Can you find the flaw?
 
   public boolean verifyAccount(Integer userId, HashMap<String, String> submittedQuestions) {
-    // short circuit if no questions are submitted
-    if (submittedQuestions.entrySet().size() != secQuestionStore.get(verifyUserId).size()) {
+    Map<String, String> expected = secQuestionStore.get(userId);
+    if (expected == null) {
       return false;
     }
 
-    if (submittedQuestions.containsKey("secQuestion0")
-        && !submittedQuestions
-            .get("secQuestion0")
-            .equals(secQuestionStore.get(verifyUserId).get("secQuestion0"))) {
+    // Iterate over what is expected, never over what was submitted. The previous version guarded
+    // each comparison with submittedQuestions.containsKey(...), so a caller who simply renamed
+    // the parameters - secQuestion2/secQuestion3 instead of secQuestion0/secQuestion1 - skipped
+    // every comparison and fell through to the final "return true".
+    if (submittedQuestions.size() != expected.size()) {
       return false;
     }
 
-    if (submittedQuestions.containsKey("secQuestion1")
-        && !submittedQuestions
-            .get("secQuestion1")
-            .equals(secQuestionStore.get(verifyUserId).get("secQuestion1"))) {
-      return false;
+    for (Map.Entry<String, String> question : expected.entrySet()) {
+      String submittedAnswer = submittedQuestions.get(question.getKey());
+      if (submittedAnswer == null || !submittedAnswer.equals(question.getValue())) {
+        return false;
+      }
     }
 
-    // else
     return true;
   }
 }

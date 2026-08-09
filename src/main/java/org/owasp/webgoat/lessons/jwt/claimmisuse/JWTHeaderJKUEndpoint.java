@@ -15,10 +15,12 @@ import com.auth0.jwt.exceptions.JWTVerificationException;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.security.interfaces.RSAPublicKey;
+import java.util.Set;
 import org.apache.commons.lang3.StringUtils;
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AssignmentHints;
 import org.owasp.webgoat.container.assignments.AttackResult;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -37,6 +39,17 @@ import org.springframework.web.bind.annotation.RestController;
 })
 public class JWTHeaderJKUEndpoint implements AssignmentEndpoint {
 
+  /**
+   * Key set locations we are willing to fetch verification keys from. Empty by default: a JWKS
+   * location that is only vouched for by the token itself vouches for nothing.
+   */
+  private final Set<String> trustedJwkSetUrls;
+
+  public JWTHeaderJKUEndpoint(
+      @Value("${webgoat.jwt.jku.trusted-urls:}") Set<String> trustedJwkSetUrls) {
+    this.trustedJwkSetUrls = trustedJwkSetUrls == null ? Set.of() : Set.copyOf(trustedJwkSetUrls);
+  }
+
   @PostMapping("jku/follow/{user}")
   public @ResponseBody String follow(@PathVariable("user") String user) {
     if ("Jerry".equals(user)) {
@@ -53,8 +66,14 @@ public class JWTHeaderJKUEndpoint implements AssignmentEndpoint {
     } else {
       try {
         var decodedJWT = JWT.decode(token);
-        var jku = decodedJWT.getHeaderClaim("jku");
-        var jwkProvider = new JwkProviderBuilder(new URL(jku.asString())).build();
+        var jku = decodedJWT.getHeaderClaim("jku").asString();
+        if (jku == null || !trustedJwkSetUrls.contains(jku)) {
+          return failed(this)
+              .feedback("jwt-invalid-token")
+              .output("The jku header does not point to a trusted key set")
+              .build();
+        }
+        var jwkProvider = new JwkProviderBuilder(new URL(jku)).build();
         var jwk = jwkProvider.get(decodedJWT.getKeyId());
         var algorithm = Algorithm.RSA256((RSAPublicKey) jwk.getPublicKey());
         JWT.require(algorithm).build().verify(decodedJWT);

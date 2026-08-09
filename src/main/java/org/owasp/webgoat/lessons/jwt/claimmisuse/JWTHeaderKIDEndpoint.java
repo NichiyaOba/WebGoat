@@ -59,23 +59,31 @@ public class JWTHeaderKIDEndpoint implements AssignmentEndpoint {
     if (StringUtils.isEmpty(token)) {
       return failed(this).feedback("jwt-invalid-token").build();
     } else {
+      final String[] errorMessage = {null};
+      Jwt jwt;
       try {
-        final String[] errorMessage = {null};
-        Jwt jwt =
+        jwt =
             Jwts.parser()
                 .setSigningKeyResolver(
                     new SigningKeyResolverAdapter() {
                       @Override
                       public byte[] resolveSigningKeyBytes(JwsHeader header, Claims claims) {
-                        final String kid = (String) header.get("kid");
-                        try (var connection = dataSource.getConnection()) {
-                          ResultSet rs =
-                              connection
-                                  .createStatement()
-                                  .executeQuery(
-                                      "SELECT key FROM jwt_keys WHERE id = '" + kid + "'");
-                          while (rs.next()) {
-                            return TextCodec.BASE64.decode(rs.getString(1));
+                        // A numeric or object kid deserialises to something other than a String,
+                        // and a ClassCastException here would escape as a 500.
+                        if (!(header.get("kid") instanceof String kid)) {
+                          return null;
+                        }
+                        // The kid is attacker controlled, so it may only ever be used as a
+                        // bound parameter - never concatenated into the statement.
+                        try (var connection = dataSource.getConnection();
+                            var statement =
+                                connection.prepareStatement(
+                                    "SELECT key FROM jwt_keys WHERE id = ?")) {
+                          statement.setString(1, kid);
+                          try (ResultSet rs = statement.executeQuery()) {
+                            if (rs.next()) {
+                              return TextCodec.BASE64.decode(rs.getString(1));
+                            }
                           }
                         } catch (SQLException e) {
                           errorMessage[0] = e.getMessage();
@@ -84,21 +92,27 @@ public class JWTHeaderKIDEndpoint implements AssignmentEndpoint {
                       }
                     })
                 .parseClaimsJws(token);
+      } catch (JwtException | IllegalArgumentException e) {
+        // A kid that resolves to no key leaves jjwt without a key to verify with, which it
+        // reports as IllegalArgumentException rather than JwtException.
         if (errorMessage[0] != null) {
           return failed(this).output(errorMessage[0]).build();
         }
-        Claims claims = (Claims) jwt.getBody();
-        String username = (String) claims.get("username");
-        if ("Jerry".equals(username)) {
-          return failed(this).feedback("jwt-final-jerry-account").build();
-        }
-        if ("Tom".equals(username)) {
-          return success(this).build();
-        } else {
-          return failed(this).feedback("jwt-final-not-tom").build();
-        }
-      } catch (JwtException e) {
         return failed(this).feedback("jwt-invalid-token").output(e.toString()).build();
+      }
+
+      if (errorMessage[0] != null) {
+        return failed(this).output(errorMessage[0]).build();
+      }
+      Claims claims = (Claims) jwt.getBody();
+      String username = (String) claims.get("username");
+      if ("Jerry".equals(username)) {
+        return failed(this).feedback("jwt-final-jerry-account").build();
+      }
+      if ("Tom".equals(username)) {
+        return success(this).build();
+      } else {
+        return failed(this).feedback("jwt-final-not-tom").build();
       }
     }
   }

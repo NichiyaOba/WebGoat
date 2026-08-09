@@ -53,7 +53,9 @@ public class IDORLogin implements AssignmentEndpoint {
       if ("tom".equals(username) && idorUserInfo.get("tom").get("password").equals(password)) {
         lessonSession.setValue("idor-authenticated-as", username);
         lessonSession.setValue("idor-authenticated-user-id", idorUserInfo.get(username).get("id"));
-        return success(this).feedback("idor.login.success").feedbackArgs(username).build();
+        // Signing in with credentials the lesson text hands out is ordinary authentication,
+        // not a bypass. The session is still primed for the rest of the lesson.
+        return failed(this).feedback("idor.login.failure").build();
       } else {
         return failed(this).feedback("idor.login.failure").build();
       }

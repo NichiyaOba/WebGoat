@@ -58,36 +58,11 @@ public class SqlInjectionLesson5 implements AssignmentEndpoint {
   }
 
   protected AttackResult injectableQuery(String query) {
-    try (Connection connection = dataSource.getConnection()) {
-      try (Statement statement =
-          connection.createStatement(
-              ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_UPDATABLE)) {
-        statement.executeQuery(query);
-        if (checkSolution(connection)) {
-          return success(this).build();
-        }
-        return failed(this).output("Your query was: " + query).build();
-      }
-    } catch (Exception e) {
-      return failed(this)
-          .output(
-              this.getClass().getName() + " : " + e.getMessage() + "<br> Your query was: " + query)
-          .build();
-    }
+    // The caller's parameter used to be handed straight to the JDBC Statement, so the request
+    // decided what SQL the server ran - not a value injected into a statement, but the statement
+    // itself. Escaping cannot help with that; the database is not exposed to caller-written SQL.
+    return failed(this).output("Caller-supplied SQL is not executed").build();
   }
 
-  private boolean checkSolution(Connection connection) {
-    try {
-      var stmt =
-          connection.prepareStatement(
-              "SELECT * FROM INFORMATION_SCHEMA.TABLE_PRIVILEGES WHERE TABLE_NAME = ? AND GRANTEE ="
-                  + " ?");
-      stmt.setString(1, "GRANT_RIGHTS");
-      stmt.setString(2, "UNAUTHORIZED_USER");
-      var resultSet = stmt.executeQuery();
-      return resultSet.next();
-    } catch (SQLException throwables) {
-      return false;
-    }
-  }
+
 }

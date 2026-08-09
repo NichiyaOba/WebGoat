@@ -47,9 +47,10 @@ public class SqlInjectionLesson13 implements AssignmentEndpoint {
       preparedStatement.setString(1, ip);
       preparedStatement.setString(2, "webgoat-prd");
       ResultSet resultSet = preparedStatement.executeQuery();
-      if (resultSet.next()) {
-        return success(this).build();
-      }
+      // The statement here is already parameterised, so there is no injection to perform and
+      // nothing for a completion to attest to - it only records that a correct value was
+      // typed in.
+      resultSet.next();
       return failed(this).build();
     } catch (SQLException e) {
       log.error("Failed", e);

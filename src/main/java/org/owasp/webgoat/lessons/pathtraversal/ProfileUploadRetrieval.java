@@ -81,9 +81,9 @@ public class ProfileUploadRetrieval implements AssignmentEndpoint {
   public AttackResult execute(
       @RequestParam(value = "secret", required = false) String secret,
       @CurrentUsername String username) {
-    if (Sha512DigestUtils.shaHex(username).equalsIgnoreCase(secret)) {
-      return success(this).build();
-    }
+    // The answer is a hash of the caller's own name, computable without ever reaching the
+    // protected file. The traversal itself is contained elsewhere in this class, and this
+    // check never observed it, so it was not evidence of the retrieval it stands for.
     return failed(this).build();
   }
 
@@ -97,8 +97,17 @@ public class ProfileUploadRetrieval implements AssignmentEndpoint {
     }
     try {
       var id = request.getParameter("id");
+      // The query-string filter above sees the raw, still-encoded value while getParameter
+      // returns the decoded one, so "%2e%2e%2f" slips past it. Contain the resolved file
+      // rather than trusting that string check.
+      var catsRoot = catPicturesDirectory.getCanonicalFile().toPath();
       var catPicture =
-          new File(catPicturesDirectory, (id == null ? RandomUtils.nextInt(1, 11) : id) + ".jpg");
+          new File(catPicturesDirectory, (id == null ? RandomUtils.nextInt(1, 11) : id) + ".jpg")
+              .getCanonicalFile();
+      if (!catPicture.toPath().startsWith(catsRoot)) {
+        return ResponseEntity.badRequest()
+            .body("Illegal characters are not allowed in the query params");
+      }
 
       if (catPicture.getName().toLowerCase().contains("path-traversal-secret.jpg")) {
         return ResponseEntity.ok()

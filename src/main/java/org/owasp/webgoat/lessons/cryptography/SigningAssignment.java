@@ -39,14 +39,14 @@ public class SigningAssignment implements AssignmentEndpoint {
   public String getPrivateKey(HttpServletRequest request)
       throws NoSuchAlgorithmException, InvalidAlgorithmParameterException {
 
-    String privateKey = (String) request.getSession().getAttribute("privateKeyString");
-    if (privateKey == null) {
-      KeyPair keyPair = CryptoUtil.generateKeyPair();
-      privateKey = CryptoUtil.getPrivateKeyInPEM(keyPair);
-      request.getSession().setAttribute("privateKeyString", privateKey);
-      request.getSession().setAttribute("keyPair", keyPair);
+    // This endpoint used to return the RSA private key in PEM to whoever asked. A private key is
+    // the half of the pair that must never leave the server: handing it out lets the holder
+    // produce signatures this application will then accept as genuine. The pair is still created
+    // for the verification below, but only the public half is ever publishable.
+    if (request.getSession().getAttribute("keyPair") == null) {
+      request.getSession().setAttribute("keyPair", CryptoUtil.generateKeyPair());
     }
-    return privateKey;
+    return "The private key is not available over HTTP.";
   }
 
   @PostMapping("/crypto/signing/verify")

@@ -39,20 +39,21 @@ public class Assignment5 implements AssignmentEndpoint {
     if (!"Larry".equals(username_login)) {
       return failed(this).feedback("user.not.larry").feedbackArgs(username_login).build();
     }
-    try (var connection = dataSource.getConnection()) {
-      PreparedStatement statement =
-          connection.prepareStatement(
-              "select password from challenge_users where userid = '"
-                  + username_login
-                  + "' and password = '"
-                  + password_login
-                  + "'");
-      ResultSet resultSet = statement.executeQuery();
-
-      if (resultSet.next()) {
-        return success(this).feedback("challenge.solved").feedbackArgs(flags.getFlag(5)).build();
-      } else {
-        return failed(this).feedback("challenge.close").build();
+    // prepareStatement was already in use, but the credentials were concatenated into the SQL
+    // before it ever saw them - so the statement was still assembled from user input. Binding
+    // them keeps the password a value instead of part of the WHERE clause.
+    try (var connection = dataSource.getConnection();
+        PreparedStatement statement =
+            connection.prepareStatement(
+                "select password from challenge_users where userid = ? and password = ?")) {
+      statement.setString(1, username_login);
+      statement.setString(2, password_login);
+      try (ResultSet resultSet = statement.executeQuery()) {
+        if (resultSet.next()) {
+          return success(this).feedback("challenge.solved").feedbackArgs(flags.getFlag(5)).build();
+        } else {
+          return failed(this).feedback("challenge.close").build();
+        }
       }
     }
   }

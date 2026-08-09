@@ -5,7 +5,6 @@
 package org.owasp.webgoat.lessons.csrf;
 
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.failed;
-import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
 import static org.springframework.http.MediaType.ALL_VALUE;
 
 import com.google.common.collect.Lists;
@@ -75,10 +74,16 @@ public class ForgedReviews implements AssignmentEndpoint {
       String validateReq,
       HttpServletRequest request,
       @CurrentUsername String username) {
-    final String host = (request.getHeader("host") == null) ? "NULL" : request.getHeader("host");
-    final String referer =
-        (request.getHeader("referer") == null) ? "NULL" : request.getHeader("referer");
-    final String[] refererArr = referer.split("/");
+    // Posting a review changes state, so it has to come from this application. The old check
+    // compared the Referer with != against a String literal - a reference comparison that is
+    // false for a header the container built - so a request without a Referer skipped straight
+    // to the success branch.
+    if (!SameOrigin.isSameOrigin(request) || validateReq == null
+        || !validateReq.equals(weakAntiCSRF)) {
+      // Rejected requests must not leave a trace: the review used to be stored before either
+      // check ran, so a refused post still altered the list it claimed not to touch.
+      return failed(this).feedback("csrf-you-forgot-something").build();
+    }
 
     Review review = new Review();
     review.setText(reviewText);
@@ -88,17 +93,7 @@ public class ForgedReviews implements AssignmentEndpoint {
     var reviews = userReviews.getOrDefault(username, new ArrayList<>());
     reviews.add(review);
     userReviews.put(username, reviews);
-    // short-circuit
-    if (validateReq == null || !validateReq.equals(weakAntiCSRF)) {
-      return failed(this).feedback("csrf-you-forgot-something").build();
-    }
-    // we have the spoofed files
-    if (referer != "NULL" && refererArr[2].equals(host)) {
-      return failed(this).feedback("csrf-same-host").build();
-    } else {
-      return success(this)
-          .feedback("csrf-review.success")
-          .build(); // feedback("xss-stored-comment-failure")
-    }
+
+    return failed(this).feedback("csrf-same-host").build();
   }
 }

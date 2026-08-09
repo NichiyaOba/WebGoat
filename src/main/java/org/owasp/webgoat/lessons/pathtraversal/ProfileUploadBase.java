@@ -48,7 +48,17 @@ public class ProfileUploadBase implements AssignmentEndpoint {
     File uploadDirectory = cleanupAndCreateDirectoryForUser(username);
 
     try {
-      var uploadedFile = new File(uploadDirectory, fullName);
+      // Contain the destination: the name is attacker controlled, so resolve it and refuse
+      // anything landing outside the user's own upload directory. Stripping "../" is not
+      // enough - "....//" and "..\" survive that kind of filter.
+      var uploadDirectoryPath = uploadDirectory.getCanonicalFile().toPath();
+      var uploadedFile = new File(uploadDirectory, fullName).getCanonicalFile();
+      if (!uploadedFile.toPath().startsWith(uploadDirectoryPath)) {
+        return failed(this)
+            .feedback("path-traversal-profile-attempt")
+            .feedbackArgs(uploadedFile.getCanonicalPath())
+            .build();
+      }
       uploadedFile.createNewFile();
       FileCopyUtils.copy(file.getBytes(), uploadedFile);
 

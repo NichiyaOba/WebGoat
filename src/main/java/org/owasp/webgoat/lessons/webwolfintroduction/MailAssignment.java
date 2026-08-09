@@ -8,7 +8,9 @@ import static org.owasp.webgoat.container.assignments.AttackResultBuilder.failed
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.informationMessage;
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
 
-import org.apache.commons.lang3.StringUtils;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import org.owasp.webgoat.container.CurrentUsername;
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AttackResult;
@@ -30,6 +32,9 @@ public class MailAssignment implements AssignmentEndpoint {
   private final String webWolfURL;
   private RestTemplate restTemplate;
 
+  /** Account -> the code last mailed to it. Nobody else can derive it. */
+  private final Map<String, String> issuedCodes = new ConcurrentHashMap<>();
+
   public MailAssignment(
       RestTemplate restTemplate, @Value("${webwolf.mail.url}") String webWolfURL) {
     this.restTemplate = restTemplate;
@@ -40,15 +45,19 @@ public class MailAssignment implements AssignmentEndpoint {
   @ResponseBody
   public AttackResult sendEmail(
       @RequestParam String email, @CurrentUsername String webGoatUsername) {
-    String username = email.substring(0, email.indexOf("@"));
+    int at = email.indexOf("@");
+    String username = email.substring(0, at == -1 ? email.length() : at);
     if (username.equalsIgnoreCase(webGoatUsername)) {
+      // The code used to be the username reversed - derivable by anyone who knew the name, so it
+      // confirmed nothing about who received the mail. It is now issued here and only reaches the
+      // mailbox it was addressed to.
+      String uniqueCode = UUID.randomUUID().toString();
+      issuedCodes.put(webGoatUsername, uniqueCode);
       Email mailEvent =
           Email.builder()
               .recipient(username)
               .title("Test messages from WebWolf")
-              .contents(
-                  "This is a test message from WebWolf, your unique code is: "
-                      + StringUtils.reverse(username))
+              .contents("This is a test message from WebWolf, your unique code is: " + uniqueCode)
               .sender("webgoat@owasp.org")
               .build();
       try {
@@ -71,7 +80,8 @@ public class MailAssignment implements AssignmentEndpoint {
   @PostMapping("/WebWolf/mail")
   @ResponseBody
   public AttackResult completed(@RequestParam String uniqueCode, @CurrentUsername String username) {
-    if (uniqueCode.equals(StringUtils.reverse(username))) {
+    String expected = issuedCodes.get(username);
+    if (expected != null && expected.equals(uniqueCode)) {
       return success(this).build();
     } else {
       return failed(this).feedbackArgs("webwolf.code_incorrect").feedbackArgs(uniqueCode).build();

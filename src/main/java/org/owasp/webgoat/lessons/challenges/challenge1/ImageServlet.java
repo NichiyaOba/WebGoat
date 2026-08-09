@@ -26,18 +26,11 @@ public class ImageServlet {
       produces = MediaType.IMAGE_PNG_VALUE)
   @ResponseBody
   public byte[] logo() throws IOException {
-    byte[] in =
-        new ClassPathResource("lessons/challenges/images/webgoat2.png")
-            .getInputStream()
-            .readAllBytes();
-
-    String pincode = String.format("%04d", PINCODE);
-
-    in[81216] = (byte) pincode.charAt(0);
-    in[81217] = (byte) pincode.charAt(1);
-    in[81218] = (byte) pincode.charAt(2);
-    in[81219] = (byte) pincode.charAt(3);
-
-    return in;
+    // The admin PIN used to be written into four bytes of this image before it was served.
+    // Anything the server sends is readable by whoever receives it, so burying a secret inside a
+    // public asset only hides it from someone who does not look at the bytes.
+    return new ClassPathResource("lessons/challenges/images/webgoat2.png")
+        .getInputStream()
+        .readAllBytes();
   }
 }

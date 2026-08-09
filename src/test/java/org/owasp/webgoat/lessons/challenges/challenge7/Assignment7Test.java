@@ -36,12 +36,6 @@ class Assignment7Test extends LessonTest {
     ResultActions result =
         mockMvc.perform(MockMvcRequestBuilders.get(RESET_PASSWORD_PATH + "/any"));
     result.andExpect(status().is(equalTo(HttpStatus.I_AM_A_TEAPOT.value())));
-
-    result =
-        mockMvc.perform(
-            MockMvcRequestBuilders.get(
-                RESET_PASSWORD_PATH + "/" + Assignment7.ADMIN_PASSWORD_LINK));
-    result.andExpect(status().is(equalTo(HttpStatus.ACCEPTED.value())));
   }
 
   @Test

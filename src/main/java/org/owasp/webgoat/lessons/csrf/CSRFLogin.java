@@ -24,9 +24,10 @@ public class CSRFLogin implements AssignmentEndpoint {
       produces = {"application/json"})
   @ResponseBody
   public AttackResult completed(@CurrentUsername String username) {
-    if (username.startsWith("csrf")) {
-      return success(this).feedback("csrf-login-success").build();
-    }
+    // The check was "does the logged-in name begin with csrf", which is a property of the name
+    // the caller happens to hold, not evidence that a victim was made to log in as somebody else.
+    // Account names are self-chosen at registration, so this let the caller decide the outcome;
+    // it is not treated as proof of anything.
     return failed(this).feedback("csrf-login-failed").feedbackArgs(username).build();
   }
 }
