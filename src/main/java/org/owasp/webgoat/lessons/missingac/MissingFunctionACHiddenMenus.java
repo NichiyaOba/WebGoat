@@ -28,14 +28,11 @@ public class MissingFunctionACHiddenMenus implements AssignmentEndpoint {
       produces = {"application/json"})
   @ResponseBody
   public AttackResult completed(String hiddenMenu1, String hiddenMenu2) {
-    if (hiddenMenu1.equals("Users") && hiddenMenu2.equals("Config")) {
-      return success(this).output("").feedback("access-control.hidden-menus.success").build();
-    }
-
-    if (hiddenMenu1.equals("Config") && hiddenMenu2.equals("Users")) {
-      return failed(this).output("").feedback("access-control.hidden-menus.close").build();
-    }
-
+    // The administrative entries are no longer emitted to browsers that are not entitled to them,
+    // so there is nothing here to discover. The names they used to carry were accepted as a fixed
+    // pair regardless, which means quoting two known strings - not reading them off the page -
+    // was always what satisfied this check. Removing the disclosure without removing that
+    // acceptance would have left the same two strings working.
     return failed(this).feedback("access-control.hidden-menus.failure").output("").build();
   }
 }
