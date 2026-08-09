@@ -24,6 +24,7 @@ import java.time.Instant;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import org.apache.commons.lang3.StringUtils;
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AssignmentHints;
@@ -56,8 +57,10 @@ public class JWTVotesEndpoint implements AssignmentEndpoint {
   /** HS512 needs a key of at least 512 bits; a guessable dictionary word does not qualify. */
   private static final int SIGNING_KEY_BYTES = 64;
 
+  private static final Duration TOKEN_VALIDITY = Duration.ofMinutes(30);
+
   public static final String JWT_PASSWORD = generateSigningKey();
-  private static String validUsers = "TomJerrySylvester";
+  private static final Set<String> VALID_USERS = Set.of("Tom", "Jerry", "Sylvester");
 
   private static int totalVotes = 38929;
   private final Map<String, Vote> votes = new HashMap<>();
@@ -114,10 +117,16 @@ public class JWTVotesEndpoint implements AssignmentEndpoint {
     return TextCodec.BASE64.encode(key);
   }
 
+  private static boolean isValidUser(String user) {
+    return user != null && VALID_USERS.contains(user);
+  }
+
   @GetMapping("/JWT/votings/login")
   public void login(@RequestParam("user") String user, HttpServletResponse response) {
-    if (validUsers.contains(user)) {
-      Claims claims = Jwts.claims().setIssuedAt(Date.from(Instant.now().plus(Duration.ofDays(10))));
+    if (isValidUser(user)) {
+      Instant issuedAt = Instant.now();
+      Claims claims = Jwts.claims().setIssuedAt(Date.from(issuedAt));
+      claims.setExpiration(Date.from(issuedAt.plus(TOKEN_VALIDITY)));
       claims.put("admin", "false");
       claims.put("user", user);
       String token =
@@ -146,13 +155,13 @@ public class JWTVotesEndpoint implements AssignmentEndpoint {
             votes.values().stream()
                 .sorted(comparingLong(Vote::getAverage).reversed())
                 .collect(toList()));
-    if (StringUtils.isEmpty(accessToken)) {
+    if (StringUtils.isBlank(accessToken)) {
       value.setSerializationView(Views.GuestView.class);
     } else {
       try {
         Jws<Claims> jws = Jwts.parser().setSigningKey(JWT_PASSWORD).parseClaimsJws(accessToken);
         String user = (String) jws.getBody().get("user");
-        if ("Guest".equals(user) || !validUsers.contains(user)) {
+        if (!isValidUser(user)) {
           value.setSerializationView(Views.GuestView.class);
         } else {
           value.setSerializationView(Views.UserView.class);
@@ -170,13 +179,13 @@ public class JWTVotesEndpoint implements AssignmentEndpoint {
   public ResponseEntity<?> vote(
       @PathVariable String title,
       @CookieValue(value = "access_token", required = false) String accessToken) {
-    if (StringUtils.isEmpty(accessToken)) {
+    if (StringUtils.isBlank(accessToken)) {
       return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
     } else {
       try {
         Jws<Claims> jws = Jwts.parser().setSigningKey(JWT_PASSWORD).parseClaimsJws(accessToken);
         String user = (String) jws.getBody().get("user");
-        if (!validUsers.contains(user)) {
+        if (!isValidUser(user)) {
           return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         } else {
           ofNullable(votes.get(title)).ifPresent(v -> v.incrementNumberOfVotes(totalVotes));
@@ -192,7 +201,7 @@ public class JWTVotesEndpoint implements AssignmentEndpoint {
   @ResponseBody
   public AttackResult resetVotes(
       @CookieValue(value = "access_token", required = false) String accessToken) {
-    if (StringUtils.isEmpty(accessToken)) {
+    if (StringUtils.isBlank(accessToken)) {
       return failed(this).feedback("jwt-invalid-token").build();
     } else {
       try {
