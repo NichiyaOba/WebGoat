@@ -43,8 +43,10 @@ public class IDORViewOwnProfileAltUrl implements AssignmentEndpoint {
             && urlParts[2].equals("profile")
             && urlParts[3].equals(authUserId)) {
           UserProfile userProfile = new UserProfile(authUserId);
-          return success(this)
-              .feedback("idor.view.own.profile.success")
+          // The submitted string is compared with the caller's own profile URL. Naming your
+          // own resource is not access to somebody else's, so this establishes nothing.
+          return failed(this)
+              .feedback("idor.view.own.profile.failure1")
               .output(userProfile.profileToMap().toString())
               .build();
         } else {

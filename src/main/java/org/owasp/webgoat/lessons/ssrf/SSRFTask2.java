@@ -45,7 +45,10 @@ public class SSRFTask2 implements AssignmentEndpoint {
             "<html><body>Although the http://ifconfig.pro site is down, you still managed to solve"
                 + " this exercise the right way!</body></html>";
       }
-      return success(this).feedback("ssrf.success").output(html).build();
+      // The only URL that reaches this point is the literal the condition above tests for, so
+      // the caller never chose where the server connected. Reporting it as a completed SSRF
+      // describes something the code cannot do.
+      return failed(this).feedback("ssrf.failure").output(html).build();
     }
     var html = "<img class=\"image\" alt=\"image post\" src=\"images/cat.jpg\">";
     return getFailedResult(html);

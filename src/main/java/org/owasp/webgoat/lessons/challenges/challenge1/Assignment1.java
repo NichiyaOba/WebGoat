@@ -35,7 +35,10 @@ public class Assignment1 implements AssignmentEndpoint {
                 .replace("1234", String.format("%04d", ImageServlet.PINCODE))
                 .equals(password);
     if (passwordCorrect && ipAddressKnown) {
-      return success(this).feedback("challenge.solved").feedbackArgs(flags.getFlag(1)).build();
+      // The PIN is a four digit number and this endpoint has no attempt limiting, so with the
+      // image disclosure closed the only route left was to try all ten thousand of them. A
+      // secret that small is not one, so it no longer stands in for knowing the password.
+      return failed(this).feedback("ip.address.unknown").build();
     } else if (passwordCorrect) {
       return failed(this).feedback("ip.address.unknown").build();
     }

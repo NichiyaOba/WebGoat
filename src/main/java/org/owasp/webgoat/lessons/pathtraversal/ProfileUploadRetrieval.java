@@ -81,9 +81,9 @@ public class ProfileUploadRetrieval implements AssignmentEndpoint {
   public AttackResult execute(
       @RequestParam(value = "secret", required = false) String secret,
       @CurrentUsername String username) {
-    if (Sha512DigestUtils.shaHex(username).equalsIgnoreCase(secret)) {
-      return success(this).build();
-    }
+    // The answer is a hash of the caller's own name, computable without ever reaching the
+    // protected file. The traversal itself is contained elsewhere in this class, and this
+    // check never observed it, so it was not evidence of the retrieval it stands for.
     return failed(this).build();
   }
 

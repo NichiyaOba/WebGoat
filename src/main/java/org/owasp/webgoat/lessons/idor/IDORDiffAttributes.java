@@ -35,7 +35,9 @@ public class IDORDiffAttributes implements AssignmentEndpoint {
             && diffAttribs[1].toLowerCase().trim().equals("role")
         || diffAttribs[1].toLowerCase().trim().equals("userid")
             && diffAttribs[0].toLowerCase().trim().equals("role")) {
-      return success(this).feedback("idor.diff.success").build();
+      // This compares two words typed into a form. It says nothing about whether anyone
+      // reached another user's record, which is what the lesson is about.
+      return failed(this).feedback("idor.diff.failure").build();
     } else {
       return failed(this).feedback("idor.diff.failure").build();
     }

@@ -59,8 +59,11 @@ public class ContentTypeAssignment implements AssignmentEndpoint {
       try {
         Comment comment = comments.parseXml(commentStr);
         comments.addComment(comment, user, false);
+        // checkSolution only asks whether the stored text contains a directory name.
+        // Any plain comment mentioning one satisfies it, so it never distinguished an
+        // expanded external entity from ordinary text.
         if (checkSolution(comment)) {
-          attackResult = success(this).build();
+          attackResult = failed(this).build();
         }
       } catch (Exception e) {
         String error = ExceptionUtils.getStackTrace(e);

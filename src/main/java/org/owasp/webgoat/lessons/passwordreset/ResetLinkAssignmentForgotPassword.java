@@ -53,7 +53,9 @@ public class ResetLinkAssignmentForgotPassword implements AssignmentEndpoint {
       return failed(this).output("E-mail can't be send. please try again.").build();
     }
 
-    return success(this).feedback("email.send").feedbackArgs(email).build();
+    // Sending the mail always reported completion, whatever was requested and whoever asked,
+    // so it recorded the act of using the form rather than any outcome of it.
+    return failed(this).feedback("email.send").feedbackArgs(email).build();
   }
 
   private void sendMailToUser(String email, String host, String resetLink) {

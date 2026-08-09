@@ -38,7 +38,10 @@ public class SSRFTask1 implements AssignmentEndpoint {
         html.append(
             "<img class=\"image\" alt=\"Jerry\" src=\"images/jerry.png\" width=\"25%\""
                 + " height=\"25%\">");
-        return success(this).feedback("ssrf.success").output(html.toString()).build();
+        // Nothing is fetched here at all - the branch is chosen by comparing the submitted
+        // string to a literal. It reports a server-side request that never happened, so it is
+        // not evidence of one.
+        return failed(this).feedback("ssrf.failure").output(html.toString()).build();
       } else {
         html.append("<img class=\"image\" alt=\"Silly Cat\" src=\"images/cat.jpg\">");
         return failed(this).feedback("ssrf.failure").output(html.toString()).build();

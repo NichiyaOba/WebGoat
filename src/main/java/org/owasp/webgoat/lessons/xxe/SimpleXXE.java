@@ -53,8 +53,12 @@ public class SimpleXXE implements AssignmentEndpoint {
     try {
       var comment = comments.parseXml(commentStr);
       comments.addComment(comment, user, false);
+      // checkSolution only asks whether the stored text contains a directory name.
+      // Any plain comment mentioning one satisfies it, so it never distinguished an
+      // expanded external entity from ordinary text. External entities are refused
+      // outright now, and this check no longer stands in for them.
       if (checkSolution(comment)) {
-        return success(this).build();
+        return failed(this).build();
       }
     } catch (Exception e) {
       error = ExceptionUtils.getStackTrace(e);

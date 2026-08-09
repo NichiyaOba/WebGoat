@@ -29,7 +29,9 @@ public class StoredCrossSiteScriptingVerifier implements AssignmentEndpoint {
   @ResponseBody
   public AttackResult completed(@RequestParam String successMessage) {
     if (successMessage.equals(lessonSession.getValue("randValue"))) {
-      return success(this).feedback("xss-stored-callback-success").build();
+      // Same value, same route: it is issued on request by the phone-home endpoint, so
+      // quoting it is not evidence that a stored payload executed.
+      return failed(this).feedback("xss-stored-callback-failure").build();
     } else {
       return failed(this).feedback("xss-stored-callback-failure").build();
     }

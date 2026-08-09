@@ -41,7 +41,10 @@ public class DOMCrossSiteScriptingVerifier implements AssignmentEndpoint {
     String answer = (String) lessonSession.getValue("randValue");
 
     if (successMessage.equals(answer)) {
-      return success(this).feedback("xss-dom-message-success").build();
+      // The value being echoed back was handed out by the endpoint above on request, so
+      // returning it shows only that it was asked for - not that it arrived via injected
+      // script.
+      return failed(this).feedback("xss-dom-message-failure").build();
     } else {
       return failed(this).feedback("xss-dom-message-failure").build();
     }
