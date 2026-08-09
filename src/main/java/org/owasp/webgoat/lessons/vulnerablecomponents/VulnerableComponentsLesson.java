@@ -8,6 +8,8 @@ import static org.owasp.webgoat.container.assignments.AttackResultBuilder.failed
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
 
 import com.thoughtworks.xstream.XStream;
+import com.thoughtworks.xstream.security.NoTypePermission;
+import com.thoughtworks.xstream.security.PrimitiveTypePermission;
 import org.apache.commons.lang3.StringUtils;
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AssignmentHints;
@@ -27,6 +29,14 @@ public class VulnerableComponentsLesson implements AssignmentEndpoint {
     xstream.setClassLoader(Contact.class.getClassLoader());
     xstream.alias("contact", ContactImpl.class);
     xstream.ignoreUnknownElements();
+    // An unconfigured XStream instantiates whatever type the document names, which is what makes
+    // payloads such as CVE-2013-7285 turn a parse into code execution. The endpoint only ever
+    // needs a contact, so that is the only thing it is allowed to build.
+    // NullPermission is deliberately not granted: it would re-admit <null/>, which deserialises
+    // to null and then satisfies "not a ContactImpl" further down without any gadget at all.
+    xstream.addPermission(NoTypePermission.NONE);
+    xstream.addPermission(PrimitiveTypePermission.PRIMITIVES);
+    xstream.allowTypes(new Class[] {ContactImpl.class, String.class, Integer.class});
     Contact contact = null;
 
     try {
@@ -49,7 +59,7 @@ public class VulnerableComponentsLesson implements AssignmentEndpoint {
         contact.getFirstName(); // trigger the example like
         // https://x-stream.github.io/CVE-2013-7285.html
       }
-      if (!(contact instanceof ContactImpl)) {
+      if (contact != null && !(contact instanceof ContactImpl)) {
         return success(this).feedback("vulnerable-components.success").build();
       }
     } catch (Exception e) {
