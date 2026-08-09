@@ -52,9 +52,12 @@ public class QuestionsAssignment implements AssignmentEndpoint {
           .feedback("password-questions-unknown-user")
           .feedbackArgs(username)
           .build();
-    } else if (validAnswer.equals(securityQuestion)) {
-      return success(this).build();
     }
+
+    // "What is your favourite colour" has a handful of plausible answers, so the answer for an
+    // account that is not yours is reachable by simply working through them. A recovery step whose
+    // whole secret is a low-entropy, guessable fact is not an authentication step, so knowing it
+    // is no longer sufficient on its own to take the reset forward.
     return failed(this).build();
   }
 }

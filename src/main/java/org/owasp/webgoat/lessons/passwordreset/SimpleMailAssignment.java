@@ -10,7 +10,9 @@ import static org.owasp.webgoat.container.assignments.AttackResultBuilder.inform
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
 
 import java.time.LocalDateTime;
-import org.apache.commons.lang3.StringUtils;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import org.owasp.webgoat.container.CurrentUsername;
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AttackResult;
@@ -32,6 +34,9 @@ public class SimpleMailAssignment implements AssignmentEndpoint {
   private final String webWolfURL;
   private RestTemplate restTemplate;
 
+  /** Account -> the password last mailed to it. Nobody else can derive it. */
+  private final Map<String, String> issuedPasswords = new ConcurrentHashMap<>();
+
   public SimpleMailAssignment(
       RestTemplate restTemplate, @Value("${webwolf.mail.url}") String webWolfURL) {
     this.restTemplate = restTemplate;
@@ -49,7 +54,8 @@ public class SimpleMailAssignment implements AssignmentEndpoint {
     String emailAddress = ofNullable(email).orElse("unknown@webgoat.org");
     String username = extractUsername(emailAddress);
 
-    if (username.equals(webGoatUsername) && StringUtils.reverse(username).equals(password)) {
+    String issued = issuedPasswords.get(webGoatUsername);
+    if (username.equals(webGoatUsername) && issued != null && issued.equals(password)) {
       return success(this).build();
     } else {
       return failed(this).feedbackArgs("password-reset-simple.password_incorrect").build();
@@ -73,14 +79,17 @@ public class SimpleMailAssignment implements AssignmentEndpoint {
 
   private AttackResult sendEmail(String username, String email, String webGoatUsername) {
     if (username.equals(webGoatUsername)) {
+      // The new password used to be the username reversed, so anyone who knew the account name
+      // knew its password without ever reading the mail. It is generated here instead, and the
+      // only copy goes to the mailbox that asked for the reset.
+      String newPassword = UUID.randomUUID().toString();
+      issuedPasswords.put(webGoatUsername, newPassword);
       PasswordResetEmail mailEvent =
           PasswordResetEmail.builder()
               .recipient(username)
               .title("Simple e-mail assignment")
               .time(LocalDateTime.now())
-              .contents(
-                  "Thanks for resetting your password, your new password is: "
-                      + StringUtils.reverse(username))
+              .contents("Thanks for resetting your password, your new password is: " + newPassword)
               .sender("webgoat@owasp.org")
               .build();
       try {
