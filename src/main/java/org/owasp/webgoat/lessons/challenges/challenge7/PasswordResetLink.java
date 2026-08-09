@@ -4,6 +4,7 @@
  */
 package org.owasp.webgoat.lessons.challenges.challenge7;
 
+import java.security.SecureRandom;
 import java.util.Random;
 
 /**
@@ -15,11 +16,10 @@ import java.util.Random;
 public class PasswordResetLink {
 
   public String createPasswordReset(String username, String key) {
-    Random random = new Random();
-    if (username.equalsIgnoreCase("admin")) {
-      // Admin has a fix reset link
-      random.setSeed(key.length());
-    }
+    // admin used to get random.setSeed(key.length()), which made its reset link the same value on
+    // every run and derivable by anyone who could read this code. A reset link is a bearer
+    // credential: it has to be unpredictable for every account, with no exceptions.
+    SecureRandom random = new SecureRandom();
     return scramble(random, scramble(random, scramble(random, MD5.getHashString(username))));
   }
 
