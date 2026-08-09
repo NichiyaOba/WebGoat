@@ -5,8 +5,13 @@
 package org.owasp.webgoat.lessons.spoofcookie.encoders;
 
 import java.nio.charset.StandardCharsets;
+import java.security.InvalidKeyException;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
 import java.util.Base64;
-import org.apache.commons.lang3.RandomStringUtils;
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 import org.springframework.security.crypto.codec.Hex;
 
 /***
@@ -17,21 +22,33 @@ import org.springframework.security.crypto.codec.Hex;
 
 public class EncDec {
 
-  // PoC: weak encoding method
+  /**
+   * The cookie used to be lowercase + salt, reversed, hex, Base64 - every step reversible without
+   * a secret, so anyone could decode their own cookie, put another user's name in it and encode it
+   * back. Encoding is not authentication. The value now carries an HMAC over itself, keyed by a
+   * secret that never leaves the server, so a modified value no longer verifies.
+   */
+  private static final String HMAC_ALGORITHM = "HmacSHA256";
 
-  private static final String SALT = RandomStringUtils.randomAlphabetic(10);
+  private static final int SIGNING_KEY_BYTES = 32;
+
+  private static final SecretKeySpec SIGNING_KEY = generateSigningKey();
 
   private EncDec() {}
+
+  private static SecretKeySpec generateSigningKey() {
+    byte[] key = new byte[SIGNING_KEY_BYTES];
+    new SecureRandom().nextBytes(key);
+    return new SecretKeySpec(key, HMAC_ALGORITHM);
+  }
 
   public static String encode(final String value) {
     if (value == null) {
       return null;
     }
 
-    String encoded = value.toLowerCase() + SALT;
-    encoded = revert(encoded);
-    encoded = hexEncode(encoded);
-    return base64Encode(encoded);
+    String payload = value.toLowerCase();
+    return base64Encode(payload + "|" + sign(payload));
   }
 
   public static String decode(final String encodedValue) throws IllegalArgumentException {
@@ -40,23 +57,29 @@ public class EncDec {
     }
 
     String decoded = base64Decode(encodedValue);
-    decoded = hexDecode(decoded);
-    decoded = revert(decoded);
-    return decoded.substring(0, decoded.length() - SALT.length());
+    int separator = decoded.lastIndexOf('|');
+    if (separator < 0) {
+      throw new IllegalArgumentException("Cookie is not signed");
+    }
+
+    String payload = decoded.substring(0, separator);
+    String signature = decoded.substring(separator + 1);
+    if (!MessageDigest.isEqual(
+        sign(payload).getBytes(StandardCharsets.UTF_8),
+        signature.getBytes(StandardCharsets.UTF_8))) {
+      throw new IllegalArgumentException("Cookie signature does not match");
+    }
+    return payload;
   }
 
-  private static String revert(final String value) {
-    return new StringBuilder(value).reverse().toString();
-  }
-
-  private static String hexEncode(final String value) {
-    char[] encoded = Hex.encode(value.getBytes(StandardCharsets.UTF_8));
-    return new String(encoded);
-  }
-
-  private static String hexDecode(final String value) {
-    byte[] decoded = Hex.decode(value);
-    return new String(decoded);
+  private static String sign(final String value) {
+    try {
+      Mac mac = Mac.getInstance(HMAC_ALGORITHM);
+      mac.init(SIGNING_KEY);
+      return new String(Hex.encode(mac.doFinal(value.getBytes(StandardCharsets.UTF_8))));
+    } catch (NoSuchAlgorithmException | InvalidKeyException e) {
+      throw new IllegalStateException("Unable to sign cookie", e);
+    }
   }
 
   private static String base64Encode(final String value) {
