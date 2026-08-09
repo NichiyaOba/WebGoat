@@ -15,6 +15,8 @@ import io.jsonwebtoken.Jws;
 import io.jsonwebtoken.Jwt;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.impl.TextCodec;
+import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
@@ -44,8 +46,22 @@ import org.springframework.web.bind.annotation.RestController;
 public class JWTRefreshEndpoint implements AssignmentEndpoint {
 
   public static final String PASSWORD = "bm5nhSkxCXZkKRy4";
-  private static final String JWT_PASSWORD = "bm5n3SkxCX4kKRy4";
+
+  /** HS512 needs a key of at least 512 bits; a short literal in the source does not qualify. */
+  private static final int SIGNING_KEY_BYTES = 64;
+
+  private static final String JWT_PASSWORD = generateSigningKey();
   private static final List<String> validRefreshTokens = new ArrayList<>();
+
+  /**
+   * Generated per JVM start, which invalidates outstanding tokens across a restart. Acceptable for
+   * this single-instance training application; a clustered deployment would need a shared key.
+   */
+  private static String generateSigningKey() {
+    byte[] key = new byte[SIGNING_KEY_BYTES];
+    new SecureRandom().nextBytes(key);
+    return TextCodec.BASE64.encode(key);
+  }
 
   @PostMapping(
       value = "/JWT/refresh/login",

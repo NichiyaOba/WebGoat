@@ -12,11 +12,11 @@ import io.jsonwebtoken.Jwt;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.impl.TextCodec;
+import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
-import java.util.Random;
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AssignmentHints;
 import org.owasp.webgoat.container.assignments.AttackResult;
@@ -31,14 +31,28 @@ import org.springframework.web.bind.annotation.RestController;
 @AssignmentHints({"jwt-secret-hint1", "jwt-secret-hint2", "jwt-secret-hint3"})
 public class JWTSecretKeyEndpoint implements AssignmentEndpoint {
 
+  /** Lesson material only. The signing key is no longer drawn from this word list. */
   public static final String[] SECRETS = {
     "victory", "business", "available", "shipping", "washington"
   };
-  public static final String JWT_SECRET =
-      TextCodec.BASE64.encode(SECRETS[new Random().nextInt(SECRETS.length)]);
+
+  /** HS256 needs a key of at least 256 bits; a dictionary word does not qualify. */
+  private static final int SIGNING_KEY_BYTES = 32;
+
+  public static final String JWT_SECRET = generateSigningKey();
   private static final String WEBGOAT_USER = "WebGoat";
   private static final List<String> expectedClaims =
       List.of("iss", "iat", "exp", "aud", "sub", "username", "Email", "Role");
+
+  /**
+   * Generated per JVM start, which invalidates outstanding tokens across a restart. Acceptable for
+   * this single-instance training application; a clustered deployment would need a shared key.
+   */
+  private static String generateSigningKey() {
+    byte[] key = new byte[SIGNING_KEY_BYTES];
+    new SecureRandom().nextBytes(key);
+    return TextCodec.BASE64.encode(key);
+  }
 
   @RequestMapping(path = "/JWT/secret/gettoken", produces = MediaType.TEXT_HTML_VALUE)
   @ResponseBody

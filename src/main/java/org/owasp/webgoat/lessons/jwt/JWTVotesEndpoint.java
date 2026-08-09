@@ -18,6 +18,7 @@ import io.jsonwebtoken.impl.TextCodec;
 import jakarta.annotation.PostConstruct;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletResponse;
+import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Date;
@@ -52,7 +53,10 @@ import org.springframework.web.bind.annotation.RestController;
 })
 public class JWTVotesEndpoint implements AssignmentEndpoint {
 
-  public static final String JWT_PASSWORD = TextCodec.BASE64.encode("victory");
+  /** HS512 needs a key of at least 512 bits; a guessable dictionary word does not qualify. */
+  private static final int SIGNING_KEY_BYTES = 64;
+
+  public static final String JWT_PASSWORD = generateSigningKey();
   private static String validUsers = "TomJerrySylvester";
 
   private static int totalVotes = 38929;
@@ -98,6 +102,16 @@ public class JWTVotesEndpoint implements AssignmentEndpoint {
             "challenge3.png",
             10000,
             totalVotes));
+  }
+
+  /**
+   * Generated per JVM start, which invalidates outstanding tokens across a restart. Acceptable for
+   * this single-instance training application; a clustered deployment would need a shared key.
+   */
+  private static String generateSigningKey() {
+    byte[] key = new byte[SIGNING_KEY_BYTES];
+    new SecureRandom().nextBytes(key);
+    return TextCodec.BASE64.encode(key);
   }
 
   @GetMapping("/JWT/votings/login")
