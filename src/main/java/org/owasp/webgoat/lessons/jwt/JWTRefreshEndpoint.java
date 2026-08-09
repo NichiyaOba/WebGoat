@@ -17,12 +17,13 @@ import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.impl.TextCodec;
 import java.security.SecureRandom;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AssignmentHints;
@@ -49,6 +50,8 @@ public class JWTRefreshEndpoint implements AssignmentEndpoint {
 
   /** HS512 needs a key of at least 512 bits; a short literal in the source does not qualify. */
   private static final int SIGNING_KEY_BYTES = 64;
+
+  private static final Duration TOKEN_VALIDITY = Duration.ofMinutes(10);
 
   private static final String JWT_PASSWORD = generateSigningKey();
   private static final List<String> validRefreshTokens = new ArrayList<>();
@@ -82,11 +85,13 @@ public class JWTRefreshEndpoint implements AssignmentEndpoint {
   }
 
   private Map<String, Object> createNewTokens(String user) {
+    Instant issuedAt = Instant.now();
     Map<String, Object> claims = Map.of("admin", "false", "user", user);
     String token =
         Jwts.builder()
-            .setIssuedAt(new Date(System.currentTimeMillis() + TimeUnit.DAYS.toDays(10)))
             .setClaims(claims)
+            .setIssuedAt(Date.from(issuedAt))
+            .setExpiration(Date.from(issuedAt.plus(TOKEN_VALIDITY)))
             .signWith(io.jsonwebtoken.SignatureAlgorithm.HS512, JWT_PASSWORD)
             .compact();
     Map<String, Object> tokenJson = new HashMap<>();
