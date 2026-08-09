@@ -58,6 +58,8 @@ TestClass.class
 
 webgoat.gitconfig
 node_modules/
+# Hibernate schema export (spring.jpa...schema-generation.scripts.create-target)
+/create.sql
 /test-results/
 /playwright-report/
 /blob-report/
