@@ -28,10 +28,19 @@ import org.springframework.web.bind.annotation.RestController;
 public class ClientSideFilteringFreeAssignment implements AssignmentEndpoint {
   public static final String SUPER_COUPON_CODE = "get_it_for_free";
 
+  private final ShopEndpoint shop;
+
+  public ClientSideFilteringFreeAssignment(ShopEndpoint shop) {
+    this.shop = shop;
+  }
+
   @PostMapping("/clientSideFiltering/getItForFree")
   @ResponseBody
   public AttackResult completed(@RequestParam String checkoutCode) {
-    if (SUPER_COUPON_CODE.equals(checkoutCode)) {
+    // Checkout used to compare the submitted code against a constant of its own, so it granted a
+    // 100% discount for a code the coupon store does not recognise. The store is the authority on
+    // which coupons exist and what they are worth, so the discount is looked up there.
+    if (shop.discountFor(checkoutCode) >= 100) {
       return success(this).build();
     }
     return failed(this).build();

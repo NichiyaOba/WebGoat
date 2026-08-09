@@ -50,19 +50,22 @@ public class ShopEndpoint {
     this.checkoutCodes = new CheckoutCodes(codes);
   }
 
+  // The 100% discount code is not a customer-facing coupon. It used to be served both here and
+  // in the listing below, so the "hidden" code was one request away for anyone - filtering it out
+  // in the browser hid it from the page, not from the API.
+
   @GetMapping(value = "/coupons/{code}", produces = MediaType.APPLICATION_JSON_VALUE)
   public CheckoutCode getDiscountCode(@PathVariable String code) {
-    if (ClientSideFilteringFreeAssignment.SUPER_COUPON_CODE.equals(code)) {
-      return new CheckoutCode(ClientSideFilteringFreeAssignment.SUPER_COUPON_CODE, 100);
-    }
     return checkoutCodes.get(code).orElse(new CheckoutCode("no", 0));
   }
 
   @GetMapping(value = "/coupons", produces = MediaType.APPLICATION_JSON_VALUE)
   public CheckoutCodes all() {
-    List<CheckoutCode> all = Lists.newArrayList();
-    all.addAll(this.checkoutCodes.getCodes());
-    all.add(new CheckoutCode(ClientSideFilteringFreeAssignment.SUPER_COUPON_CODE, 100));
-    return new CheckoutCodes(all);
+    return new CheckoutCodes(Lists.newArrayList(this.checkoutCodes.getCodes()));
+  }
+
+  /** The discount a code is actually worth here, or none if this store has no such coupon. */
+  int discountFor(String code) {
+    return checkoutCodes.get(code).map(CheckoutCode::getDiscount).orElse(0);
   }
 }
