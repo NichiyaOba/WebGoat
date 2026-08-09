@@ -11,6 +11,7 @@ import static org.springframework.http.ResponseEntity.ok;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.Jws;
+import io.jsonwebtoken.JwsHeader;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.impl.TextCodec;
@@ -65,6 +66,10 @@ public class JWTRefreshEndpoint implements AssignmentEndpoint {
     return TextCodec.BASE64.encode(key);
   }
 
+  private static String stripBearerPrefix(String authorizationHeader) {
+    return authorizationHeader.replace("Bearer ", "").trim();
+  }
+
   @PostMapping(
       value = "/JWT/refresh/login",
       consumes = MediaType.APPLICATION_JSON_VALUE,
@@ -110,9 +115,11 @@ public class JWTRefreshEndpoint implements AssignmentEndpoint {
     }
     try {
       Jws<Claims> jws =
-          Jwts.parser().setSigningKey(JWT_PASSWORD).parseClaimsJws(token.replace("Bearer ", ""));
+          Jwts.parser().setSigningKey(JWT_PASSWORD).parseClaimsJws(stripBearerPrefix(token));
       String user = (String) jws.getBody().get("user");
       if ("Tom".equals(user)) {
+        // Unreachable since parseClaimsJws rejects unsigned tokens; kept so the lesson's own
+        // definition of success stays visible next to the check that now prevents it.
         if ("none".equals(jws.getHeader().getAlgorithm())) {
           return ok(success(this).feedback("jwt-refresh-alg-none").build());
         }
@@ -121,7 +128,8 @@ public class JWTRefreshEndpoint implements AssignmentEndpoint {
       return ok(failed(this).feedback("jwt-refresh-not-tom").feedbackArgs(user).build());
     } catch (ExpiredJwtException e) {
       return ok(failed(this).output(e.getMessage()).build());
-    } catch (JwtException e) {
+    } catch (JwtException | IllegalArgumentException e) {
+      // An empty or blank bearer value makes jjwt raise IllegalArgumentException, not JwtException.
       return ok(failed(this).feedback("jwt-invalid-token").build());
     }
   }
@@ -144,7 +152,7 @@ public class JWTRefreshEndpoint implements AssignmentEndpoint {
     // access token may legitimately be expired here, and the claims of a token we accepted only
     // because it expired are not a trustworthy source of identity.
     String user = refreshTokenOwners.get(refreshToken);
-    if (user == null) {
+    if (user == null || !presentsSignedTokenFor(token, user)) {
       return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
     }
 
@@ -153,5 +161,25 @@ public class JWTRefreshEndpoint implements AssignmentEndpoint {
       return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
     }
     return ok(createNewTokens(user));
+  }
+
+  /**
+   * Accepts an expired access token - refreshing one is the point of this endpoint - but only if
+   * it really carried a signature. jjwt reports expiry from inside {@code parse}, before {@code
+   * parseClaimsJws} gets to reject unsigned tokens, so an {@code alg: none} token with an {@code
+   * exp} in the past would otherwise reach us looking verified.
+   */
+  private boolean presentsSignedTokenFor(String authorizationHeader, String user) {
+    try {
+      Jws<Claims> jws =
+          Jwts.parser()
+              .setSigningKey(JWT_PASSWORD)
+              .parseClaimsJws(stripBearerPrefix(authorizationHeader));
+      return user.equals(jws.getBody().get("user"));
+    } catch (ExpiredJwtException e) {
+      return e.getHeader() instanceof JwsHeader && user.equals(e.getClaims().get("user"));
+    } catch (JwtException | IllegalArgumentException e) {
+      return false;
+    }
   }
 }
