@@ -40,7 +40,8 @@ public class MailAssignment implements AssignmentEndpoint {
   @ResponseBody
   public AttackResult sendEmail(
       @RequestParam String email, @CurrentUsername String webGoatUsername) {
-    String username = email.substring(0, email.indexOf("@"));
+    int at = email.indexOf("@");
+    String username = email.substring(0, at == -1 ? email.length() : at);
     if (username.equalsIgnoreCase(webGoatUsername)) {
       Email mailEvent =
           Email.builder()
