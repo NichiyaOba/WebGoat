@@ -10,6 +10,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.time.LocalDateTime;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import lombok.extern.slf4j.Slf4j;
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AttackResult;
@@ -37,7 +39,12 @@ import org.springframework.web.client.RestTemplate;
 @Slf4j
 public class Assignment7 implements AssignmentEndpoint {
 
-  public static final String ADMIN_PASSWORD_LINK = "375afe1104f4a487a73823c50a9292a2";
+  /**
+   * Reset link -> the account it was issued for. A link is a bearer credential for one account,
+   * so the account has to travel with it: tracking only "some link we handed out" would let
+   * anyone request a link for their own address and redeem it as though it were admin's.
+   */
+  private final Map<String, String> issuedResetLinks = new ConcurrentHashMap<>();
 
   private static final String TEMPLATE =
       "Hi, you requested a password reset link, please use this <a target='_blank'"
@@ -63,7 +70,10 @@ public class Assignment7 implements AssignmentEndpoint {
 
   @GetMapping("/challenge/7/reset-password/{link}")
   public ResponseEntity<String> resetPassword(@PathVariable(value = "link") String link) {
-    if (link.equals(ADMIN_PASSWORD_LINK)) {
+    // The accepted link used to be a constant in this class, so it was valid forever and known to
+    // anyone who could read the source. Only a link this run issued for admin is honoured, and it
+    // is consumed on use - admin's link is mailed to admin's mailbox, which nobody else can read.
+    if ("admin".equals(issuedResetLinks.remove(link))) {
       return ResponseEntity.accepted()
           .body(
               "<h1>Success!!</h1>"
@@ -84,14 +94,13 @@ public class Assignment7 implements AssignmentEndpoint {
       String username = email.substring(0, at == -1 ? email.length() : at);
       if (StringUtils.hasText(username)) {
         URI uri = new URI(request.getRequestURL().toString());
+        String resetLink = new PasswordResetLink().createPasswordReset(username, "webgoat");
+        issuedResetLinks.put(resetLink, username);
         Email mail =
             Email.builder()
                 .title("Your password reset link for challenge 7")
                 .contents(
-                    String.format(
-                        TEMPLATE,
-                        uri.getScheme() + "://" + uri.getHost(),
-                        new PasswordResetLink().createPasswordReset(username, "webgoat")))
+                    String.format(TEMPLATE, uri.getScheme() + "://" + uri.getHost(), resetLink))
                 .sender("password-reset@webgoat-cloud.net")
                 .recipient(username)
                 .time(LocalDateTime.now())
@@ -102,9 +111,7 @@ public class Assignment7 implements AssignmentEndpoint {
     return success(this).feedback("email.send").feedbackArgs(email).build();
   }
 
-  @GetMapping(value = "/challenge/7/.git", produces = MediaType.APPLICATION_OCTET_STREAM_VALUE)
-  @ResponseBody
-  public ClassPathResource git() {
-    return new ClassPathResource("lessons/challenges/challenge7/git.zip");
-  }
+  // The endpoint that served lessons/challenges/challenge7/git.zip is gone. A repository's
+  // history is not public content: publishing it hands out the source, and with it every secret
+  // that was ever committed - here, the reset link admin was given.
 }
