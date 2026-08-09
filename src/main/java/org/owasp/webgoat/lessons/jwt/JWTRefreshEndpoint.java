@@ -50,11 +50,19 @@ public class JWTRefreshEndpoint implements AssignmentEndpoint {
   private static final int SIGNING_KEY_BYTES = 64;
 
   private static final Duration TOKEN_VALIDITY = Duration.ofMinutes(10);
+  private static final Duration REFRESH_TOKEN_VALIDITY = Duration.ofHours(1);
+  private static final int REFRESH_TOKEN_LENGTH = 20;
 
   private static final String JWT_PASSWORD = generateSigningKey();
 
-  /** Refresh token -> the user it was handed out to, so it can only refresh that user. */
-  private static final Map<String, String> refreshTokenOwners = new ConcurrentHashMap<>();
+  /** Refresh token -> the session it was handed out for, so it can only refresh that session. */
+  private static final Map<String, RefreshToken> refreshTokens = new ConcurrentHashMap<>();
+
+  private record RefreshToken(String user, Instant expiresAt) {
+    boolean hasExpired() {
+      return expiresAt.isBefore(Instant.now());
+    }
+  }
 
   /**
    * Generated per JVM start, which invalidates outstanding tokens across a restart. Acceptable for
@@ -99,8 +107,11 @@ public class JWTRefreshEndpoint implements AssignmentEndpoint {
             .signWith(io.jsonwebtoken.SignatureAlgorithm.HS512, JWT_PASSWORD)
             .compact();
     Map<String, Object> tokenJson = new HashMap<>();
-    String refreshToken = RandomStringUtils.randomAlphabetic(20);
-    refreshTokenOwners.put(refreshToken, user);
+    String refreshToken = RandomStringUtils.randomAlphabetic(REFRESH_TOKEN_LENGTH);
+    // Refresh tokens expire too, otherwise a leaked one outlives every access token it mints,
+    // and the map would grow without bound.
+    refreshTokens.values().removeIf(RefreshToken::hasExpired);
+    refreshTokens.put(refreshToken, new RefreshToken(user, issuedAt.plus(REFRESH_TOKEN_VALIDITY)));
     tokenJson.put("access_token", token);
     tokenJson.put("refresh_token", refreshToken);
     return tokenJson;
@@ -151,16 +162,16 @@ public class JWTRefreshEndpoint implements AssignmentEndpoint {
     // The refresh token, not the presented access token, decides whose session is refreshed. The
     // access token may legitimately be expired here, and the claims of a token we accepted only
     // because it expired are not a trustworthy source of identity.
-    String user = refreshTokenOwners.get(refreshToken);
-    if (user == null || !presentsSignedTokenFor(token, user)) {
+    RefreshToken stored = refreshTokens.get(refreshToken);
+    if (stored == null || stored.hasExpired() || !presentsSignedTokenFor(token, stored.user())) {
       return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
     }
 
     // Conditional removal makes verifying and consuming the refresh token one atomic step.
-    if (!refreshTokenOwners.remove(refreshToken, user)) {
+    if (!refreshTokens.remove(refreshToken, stored)) {
       return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
     }
-    return ok(createNewTokens(user));
+    return ok(createNewTokens(stored.user()));
   }
 
   /**
