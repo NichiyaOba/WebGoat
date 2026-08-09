@@ -7,8 +7,6 @@ package org.owasp.webgoat.lessons.logging;
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.failed;
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
 
-import java.nio.charset.StandardCharsets;
-import java.util.Base64;
 import java.util.UUID;
 import org.apache.logging.log4j.util.Strings;
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
@@ -28,9 +26,10 @@ public class LogBleedingTask implements AssignmentEndpoint {
 
   public LogBleedingTask() {
     this.password = UUID.randomUUID().toString();
-    log.info(
-        "Password for admin: {}",
-        Base64.getEncoder().encodeToString(password.getBytes(StandardCharsets.UTF_8)));
+    // The admin password used to be written to the log, Base64 encoded. Encoding is not
+    // protection - anyone who can read the log can decode it - and a credential has no business
+    // being in a log line at all, whatever shape it is in.
+    log.info("Admin credentials initialised");
   }
 
   @PostMapping("/LogSpoofing/log-bleeding")
