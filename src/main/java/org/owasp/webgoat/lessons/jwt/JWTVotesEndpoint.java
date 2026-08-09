@@ -11,7 +11,7 @@ import static org.owasp.webgoat.container.assignments.AttackResultBuilder.failed
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
 
 import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.Jwt;
+import io.jsonwebtoken.Jws;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.impl.TextCodec;
@@ -136,9 +136,8 @@ public class JWTVotesEndpoint implements AssignmentEndpoint {
       value.setSerializationView(Views.GuestView.class);
     } else {
       try {
-        Jwt jwt = Jwts.parser().setSigningKey(JWT_PASSWORD).parse(accessToken);
-        Claims claims = (Claims) jwt.getBody();
-        String user = (String) claims.get("user");
+        Jws<Claims> jws = Jwts.parser().setSigningKey(JWT_PASSWORD).parseClaimsJws(accessToken);
+        String user = (String) jws.getBody().get("user");
         if ("Guest".equals(user) || !validUsers.contains(user)) {
           value.setSerializationView(Views.GuestView.class);
         } else {
@@ -161,9 +160,8 @@ public class JWTVotesEndpoint implements AssignmentEndpoint {
       return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
     } else {
       try {
-        Jwt jwt = Jwts.parser().setSigningKey(JWT_PASSWORD).parse(accessToken);
-        Claims claims = (Claims) jwt.getBody();
-        String user = (String) claims.get("user");
+        Jws<Claims> jws = Jwts.parser().setSigningKey(JWT_PASSWORD).parseClaimsJws(accessToken);
+        String user = (String) jws.getBody().get("user");
         if (!validUsers.contains(user)) {
           return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         } else {
@@ -184,9 +182,8 @@ public class JWTVotesEndpoint implements AssignmentEndpoint {
       return failed(this).feedback("jwt-invalid-token").build();
     } else {
       try {
-        Jwt jwt = Jwts.parser().setSigningKey(JWT_PASSWORD).parse(accessToken);
-        Claims claims = (Claims) jwt.getBody();
-        boolean isAdmin = Boolean.valueOf(String.valueOf(claims.get("admin")));
+        Jws<Claims> jws = Jwts.parser().setSigningKey(JWT_PASSWORD).parseClaimsJws(accessToken);
+        boolean isAdmin = Boolean.parseBoolean(String.valueOf(jws.getBody().get("admin")));
         if (!isAdmin) {
           return failed(this).feedback("jwt-only-admin").build();
         } else {

@@ -11,6 +11,7 @@ import static org.springframework.http.ResponseEntity.ok;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.Header;
+import io.jsonwebtoken.Jws;
 import io.jsonwebtoken.Jwt;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
@@ -88,11 +89,11 @@ public class JWTRefreshEndpoint implements AssignmentEndpoint {
       return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
     }
     try {
-      Jwt jwt = Jwts.parser().setSigningKey(JWT_PASSWORD).parse(token.replace("Bearer ", ""));
-      Claims claims = (Claims) jwt.getBody();
-      String user = (String) claims.get("user");
+      Jws<Claims> jws =
+          Jwts.parser().setSigningKey(JWT_PASSWORD).parseClaimsJws(token.replace("Bearer ", ""));
+      String user = (String) jws.getBody().get("user");
       if ("Tom".equals(user)) {
-        if ("none".equals(jwt.getHeader().get("alg"))) {
+        if ("none".equals(jws.getHeader().getAlgorithm())) {
           return ok(success(this).feedback("jwt-refresh-alg-none").build());
         }
         return ok(success(this).build());
