@@ -10,20 +10,17 @@ import static org.springframework.http.ResponseEntity.ok;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
-import io.jsonwebtoken.Header;
 import io.jsonwebtoken.Jws;
-import io.jsonwebtoken.Jwt;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.impl.TextCodec;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AssignmentHints;
@@ -54,7 +51,9 @@ public class JWTRefreshEndpoint implements AssignmentEndpoint {
   private static final Duration TOKEN_VALIDITY = Duration.ofMinutes(10);
 
   private static final String JWT_PASSWORD = generateSigningKey();
-  private static final List<String> validRefreshTokens = new ArrayList<>();
+
+  /** Refresh token -> the user it was handed out to, so it can only refresh that user. */
+  private static final Map<String, String> refreshTokenOwners = new ConcurrentHashMap<>();
 
   /**
    * Generated per JVM start, which invalidates outstanding tokens across a restart. Acceptable for
@@ -96,7 +95,7 @@ public class JWTRefreshEndpoint implements AssignmentEndpoint {
             .compact();
     Map<String, Object> tokenJson = new HashMap<>();
     String refreshToken = RandomStringUtils.randomAlphabetic(20);
-    validRefreshTokens.add(refreshToken);
+    refreshTokenOwners.put(refreshToken, user);
     tokenJson.put("access_token", token);
     tokenJson.put("refresh_token", refreshToken);
     return tokenJson;
@@ -136,25 +135,23 @@ public class JWTRefreshEndpoint implements AssignmentEndpoint {
       return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
     }
 
-    String user;
-    String refreshToken;
-    try {
-      Jwt<Header, Claims> jwt =
-          Jwts.parser().setSigningKey(JWT_PASSWORD).parse(token.replace("Bearer ", ""));
-      user = (String) jwt.getBody().get("user");
-      refreshToken = (String) json.get("refresh_token");
-    } catch (ExpiredJwtException e) {
-      user = (String) e.getClaims().get("user");
-      refreshToken = (String) json.get("refresh_token");
+    String refreshToken = (String) json.get("refresh_token");
+    if (refreshToken == null) {
+      return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
     }
 
-    if (user == null || refreshToken == null) {
-      return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-    } else if (validRefreshTokens.contains(refreshToken)) {
-      validRefreshTokens.remove(refreshToken);
-      return ok(createNewTokens(user));
-    } else {
+    // The refresh token, not the presented access token, decides whose session is refreshed. The
+    // access token may legitimately be expired here, and the claims of a token we accepted only
+    // because it expired are not a trustworthy source of identity.
+    String user = refreshTokenOwners.get(refreshToken);
+    if (user == null) {
       return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
     }
+
+    // Conditional removal makes verifying and consuming the refresh token one atomic step.
+    if (!refreshTokenOwners.remove(refreshToken, user)) {
+      return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+    }
+    return ok(createNewTokens(user));
   }
 }
