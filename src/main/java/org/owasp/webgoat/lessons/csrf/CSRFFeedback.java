@@ -9,7 +9,6 @@ import static org.owasp.webgoat.container.assignments.AttackResultBuilder.succes
 
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.util.Map;
@@ -19,7 +18,6 @@ import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AssignmentHints;
 import org.owasp.webgoat.container.assignments.AttackResult;
 import org.owasp.webgoat.container.session.LessonSession;
-import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -54,16 +52,19 @@ public class CSRFFeedback implements AssignmentEndpoint {
     } catch (IOException e) {
       return failed(this).feedback(ExceptionUtils.getStackTrace(e)).build();
     }
-    boolean correctCSRF =
-        requestContainsWebGoatCookie(request.getCookies())
-            && request.getContentType().contains(MediaType.TEXT_PLAIN_VALUE);
-    correctCSRF &= hostOrRefererDifferentHost(request);
-    if (correctCSRF) {
-      String flag = UUID.randomUUID().toString();
-      userSessionData.setValue("csrf-feedback", flag);
-      return success(this).feedback("csrf-feedback-success").feedbackArgs(flag).build();
+    // Posting feedback changes state, so it is only accepted from this application. The session
+    // cookie rides along on a cross-site post exactly as it does on a real one, which is why the
+    // previous version - cookie present, text/plain body, Referer pointing elsewhere - described
+    // a successful CSRF rather than a legitimate request.
+    if (!SameOrigin.isSameOrigin(request)) {
+      return failed(this).output("Request did not originate from this application").build();
     }
-    return failed(this).build();
+
+    // The flag was the reward for a cross-site post landing here. Now that only same-origin posts
+    // are accepted, there is no cross-site post to reward - and handing the flag to an ordinary
+    // same-origin submission would just move the giveaway, not remove it. Feedback is accepted;
+    // no secret is returned.
+    return failed(this).output("Thanks for your feedback").build();
   }
 
   @PostMapping(path = "/csrf/feedback", produces = "application/json")
@@ -74,27 +75,6 @@ public class CSRFFeedback implements AssignmentEndpoint {
     } else {
       return failed(this).build();
     }
-  }
-
-  private boolean hostOrRefererDifferentHost(HttpServletRequest request) {
-    String referer = request.getHeader("Referer");
-    String host = request.getHeader("Host");
-    if (referer != null) {
-      return !referer.contains(host);
-    } else {
-      return true;
-    }
-  }
-
-  private boolean requestContainsWebGoatCookie(Cookie[] cookies) {
-    if (cookies != null) {
-      for (Cookie c : cookies) {
-        if (c.getName().equals("JSESSIONID")) {
-          return true;
-        }
-      }
-    }
-    return false;
   }
 
   /*
